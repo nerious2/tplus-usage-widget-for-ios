@@ -371,11 +371,11 @@ let lastUpdateDateStack = titleLastUpdateStack.addStack()
 lastUpdateDateStack.addSpacer()
 
 // Get Time
-const year = new String(thisTime.getFullYear() % 100).padStart(2, '0')
-const month = new String(thisTime.getMonth() + 1).padStart(2, '0')
-const day = new String(thisTime.getDate()).padStart(2, '0')
-const hour = new String(thisTime.getHours()).padStart(2, '0')
-const minute = new String(thisTime.getMinutes()).padStart(2, '0')
+const year = new String(lastUpdateTime.getFullYear() % 100).padStart(2, '0')
+const month = new String(lastUpdateTime.getMonth() + 1).padStart(2, '0')
+const day = new String(lastUpdateTime.getDate()).padStart(2, '0')
+const hour = new String(lastUpdateTime.getHours()).padStart(2, '0')
+const minute = new String(lastUpdateTime.getMinutes()).padStart(2, '0')
 
 
 let lastUpdateDateText = lastUpdateDateStack.addText(`${year}.${month}.${day}`)
