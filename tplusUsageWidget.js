@@ -73,9 +73,9 @@ let lastUpdateTextColor = new Color(theme === 'black' ? 'A0A0A0' : '606060')
 
 
 if (darkmode) {
-    backColor = Color.dynamic(backColor, new Color('000000'))
-    usageTextColor = Color.dynamic(usageTextColor, new Color('FFFFFF'))
-    lastUpdateTextColor = Color.dynamic(lastUpdateTextColor, new Color('A0A0A0'))
+  backColor = Color.dynamic(backColor, new Color('000000'))
+  usageTextColor = Color.dynamic(usageTextColor, new Color('FFFFFF'))
+  lastUpdateTextColor = Color.dynamic(lastUpdateTextColor, new Color('A0A0A0'))
 }
 
 
@@ -108,146 +108,146 @@ const bodyTitleWidth = 33
 
 // Function
 function creatProgress(total, usage) {
-    const context = new DrawContext()
-    context.size = new Size(width, h)
-    context.opaque = false
-    context.respectScreenScale = true
+  const context = new DrawContext()
+  context.size = new Size(width, h)
+  context.opaque = false
+  context.respectScreenScale = true
 
-    // NaN 검사
-    if (Number.isNaN(total) || Number.isNaN(usage)) {
-        total = 1
-        usage = 1
-    }
-    
-    // Background Path
-    context.setFillColor(fillColorProgressbar)
-    const path = new Path()
-    path.addRoundedRect(new Rect(0, 0, width, h), 4, 10)
-    context.addPath(path)
-    context.fillPath()
-    
-    // Progress Path
-    context.setFillColor(strokeColorProgressbar)  
-    const path1 = new Path()
-    const path1width = (width * (usage / total) > width) ? width : width * (usage / total)
-    path1.addRoundedRect(new Rect(0, 0, path1width, h), 4, 10)
-    context.addPath(path1)
-    context.fillPath()
-    return context.getImage()   
+  // NaN 검사
+  if (Number.isNaN(total) || Number.isNaN(usage)) {
+    total = 1
+    usage = 1
+  }
+  
+  // Background Path
+  context.setFillColor(fillColorProgressbar)
+  const path = new Path()
+  path.addRoundedRect(new Rect(0, 0, width, h), 4, 10)
+  context.addPath(path)
+  context.fillPath()
+  
+  // Progress Path
+  context.setFillColor(strokeColorProgressbar)  
+  const path1 = new Path()
+  const path1width = (width * (usage / total) > width) ? width : width * (usage / total)
+  path1.addRoundedRect(new Rect(0, 0, path1width, h), 4, 10)
+  context.addPath(path1)
+  context.fillPath()
+  return context.getImage()   
 }
 
 async function GetUsage() {
-    let v = new WebView()
+  let v = new WebView()
+  await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/myPageService.do#/page/121')
+  
+  console.log('wait 100ms')
+  sleep(100)
+  
+  let result = await v.evaluateJavaScript(`
+    let usd = document.getElementsByClassName('overlay alert')[0].style.display
+    usd
+  `)
+  console.log('overlay alert')
+  console.log(result)
+  
+  if (result.indexOf('block') !== -1) {
+    console.log('login start')
+    await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/loginService.do')
+  
+    await v.evaluateJavaScript(`
+      let user = '${user}'
+      let pass = '${pass}'
+      document.getElementById('uid').value = user
+      document.getElementById('upw').value = pass
+      document.getElementById('autoLoginChk').value = true
+      document.getElementsByClassName('btn btn_full btn_login')[0].click()
+    `)
     await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/myPageService.do#/page/121')
-    
-    console.log('wait 100ms')
-    sleep(100)
-    
-    let result = await v.evaluateJavaScript(`
-      let usd = document.getElementsByClassName('overlay alert')[0].style.display
-      usd
+  }
+  
+  // loading 끝날때 까지 대기 (5초)
+  for (let i = 0; i < 50; i++) {
+    result = await v.evaluateJavaScript(`  
+      document.getElementsByClassName('overlay_load')[0].style.display
     `)
-    console.log('overlay alert')
+    if (result === 'none') {
+      console.log('break')
+      break
+    } else {
+      console.log('sleep 100ms')
+      sleep(100)
+    }
+  }
+  
+  // 정상적으로 불러왔는지 검증
+  // 로그인 실패 검사
+  result = await v.evaluateJavaScript(`
+    document.getElementsByClassName('modal_s alert')[0].style.display
+  `)
+    
+  if (result === 'block') {
+    // 불러오기 실패 예외 처리
+    console.log('login failed -> widget end')
     console.log(result)
+    const prompt = new Alert()
+    prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
+    prompt.addAction('확인')
+    await prompt.presentAlert()
+
+    throw new Error('Failed to Login')
+  }
+
+
+  result = await v.evaluateJavaScript(`
+    document.getElementsByClassName('progress__label').length
+  `)
     
-    if (result.indexOf('block') !== -1) {
-      console.log('login start')
-      await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/loginService.do')
-    
-      await v.evaluateJavaScript(`
-        let user = '${user}'
-        let pass = '${pass}'
-        document.getElementById('uid').value = user
-        document.getElementById('upw').value = pass
-        document.getElementById('autoLoginChk').value = true
-        document.getElementsByClassName('btn btn_full btn_login')[0].click()
-      `)
-      await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/myPageService.do#/page/121')
+  if (result !== 4) {
+    // 불러오기 실패 예외 처리
+    console.log('loading failed -> widget end')
+    console.log(result)
+    throw new Error('Failed to get data from server.')
+  }
+  
+  
+  let remain = await v.evaluateJavaScript(`
+    let r = new Array()
+    for (let i = 1; i < 4; i++) {
+      r.push(document.getElementsByClassName('progress__label').item(i).innerText)
     }
-    
-    // loading 끝날때 까지 대기 (5초)
-    for (let i = 0; i < 50; i++) {
-      result = await v.evaluateJavaScript(`  
-        document.getElementsByClassName('overlay_load')[0].style.display
-      `)
-      if (result === 'none') {
-        console.log('break')
-        break
-      } else {
-        console.log('sleep 100ms')
-        sleep(100)
-      }
+    r
+  `)
+  // console.log(remain)
+  
+  let usage = await v.evaluateJavaScript(`
+    let u = new Array()
+    for (let i = 1; i < 4; i++) {
+      u.push(document.getElementsByClassName('progress_value_full').item(i).innerText)
     }
-    
-    // 정상적으로 불러왔는지 검증
-    // 로그인 실패 검사
-    result = await v.evaluateJavaScript(`
-        document.getElementsByClassName('modal_s alert')[0].style.display
-    `)
-      
-    if (result === 'block') {
-        // 불러오기 실패 예외 처리
-        console.log('login failed -> widget end')
-        console.log(result)
-        const prompt = new Alert()
-        prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
-        prompt.addAction('확인')
-        await prompt.presentAlert()
+    u
+  `)
+  // console.log(usage)
 
-        throw new Error('Failed to Login')
-    }
+  let final = new Object()
+  final.data = new Object()
+  final.voice = new Object()
+  final.sms = new Object()
 
+  // 데이터 단위 추출
+  final.data.usage = remain[1].substring(remain[1].indexOf('(') + 1, remain[1].lastIndexOf(')')).trim()
+  final.data.total =  usage[1].substring(usage[1].indexOf('(') + 1, usage[1].lastIndexOf(')')).trim()
 
-    result = await v.evaluateJavaScript(`
-      document.getElementsByClassName('progress__label').length
-    `)
-      
-    if (result !== 4) {
-      // 불러오기 실패 예외 처리
-      console.log('loading failed -> widget end')
-      console.log(result)
-      throw new Error('Failed to get data from server.')
-    }
-    
-    
-    let remain = await v.evaluateJavaScript(`
-        let r = new Array()
-        for (let i = 1; i < 4; i++) {
-          r.push(document.getElementsByClassName('progress__label').item(i).innerText)
-        }
-        r
-    `)
-    // console.log(remain)
-    
-    let usage = await v.evaluateJavaScript(`
-        let u = new Array()
-        for (let i = 1; i < 4; i++) {
-          u.push(document.getElementsByClassName('progress_value_full').item(i).innerText)
-        }
-        u
-    `)
-    // console.log(usage)
+  final.voice.usage = remain[0].substring(remain[0].indexOf('(') + 1, remain[0].lastIndexOf(')')).trim()
+  final.voice.total = usage[0].substring(usage[0].indexOf('(') + 1, usage[0].lastIndexOf(')')).trim()
 
-    let final = new Object()
-    final.data = new Object()
-    final.voice = new Object()
-    final.sms = new Object()
-
-    // 데이터 단위 추출
-    final.data.usage = remain[1].substring(remain[1].indexOf('(') + 1, remain[1].lastIndexOf(')')).trim()
-    final.data.total =  usage[1].substring(usage[1].indexOf('(') + 1, usage[1].lastIndexOf(')')).trim()
-
-    final.voice.usage = remain[0].substring(remain[0].indexOf('(') + 1, remain[0].lastIndexOf(')')).trim()
-    final.voice.total = usage[0].substring(usage[0].indexOf('(') + 1, usage[0].lastIndexOf(')')).trim()
-
-    final.sms.usage = remain[2].substring(remain[2].indexOf('(') + 1, remain[2].lastIndexOf(')')).trim()
-    final.sms.total = usage[2].substring(usage[2].indexOf('(') + 1, usage[2].lastIndexOf(')')).trim()
+  final.sms.usage = remain[2].substring(remain[2].indexOf('(') + 1, remain[2].lastIndexOf(')')).trim()
+  final.sms.total = usage[2].substring(usage[2].indexOf('(') + 1, usage[2].lastIndexOf(')')).trim()
 
 
 
-    console.log(JSON.stringify(final))
+  console.log(JSON.stringify(final))
 
-    return final
+  return final
 }
 
 function sleep(ms) {
@@ -268,66 +268,85 @@ const files = FileManager.local()
 
 // Set up Cache
 const cachePath = files.joinPath(files.cacheDirectory(), 'tplus-usage-widget-cache')
-const cacheExists = files.fileExists(cachePath)
-const cacheDate = cacheExists ? files.modificationDate(cachePath) : 0
+const docPath = files.joinPath(files.libraryDirectory(), 'tplus-usage-widget-cache')
+let cacheExists = files.fileExists(cachePath)
+const docExists = files.fileExists(docPath)
+let cacheDate = cacheExists ? files.modificationDate(cachePath) : 0
+const savePath = config.runsInWidget ? cachePath : docPath;
 
 // Check Cache
 const thisTime = new Date()
 let lastUpdateTime
 let usageData = {
-    data : {
-        usage : '불러오기 실패',
-        total : '0',
-    },
-    voice : {
-        usage : '불러오기 실패',
-        total : '0',
-    },
-    sms : {
-        usage : '불러오기 실패',
-        total : '0',
-    },
+  data : {
+    usage : '불러오기 실패',
+    total : '0',
+  },
+  voice : {
+    usage : '불러오기 실패',
+    total : '0',
+  },
+  sms : {
+    usage : '불러오기 실패',
+    total : '0',
+  },
 }
 
 
 try {
-    // 캐시가 존재하고, 캐시 수정 시간이 현재 시간과 비교하였을 때 cacheMinutes 보다 적을 경우, 기존 캐시 데이터를 사용함
-    if (cacheExists && (thisTime.getTime() - cacheDate.getTime()) < (cacheMinutes * 60 * 1000)) {
-        console.log('Use Data from Cache')
-        usageData = JSON.parse(files.readString(cachePath))
-        lastUpdateTime = cacheDate
-    } else {
-        // cacheMinutes가 0으로 설정되어 있는데 캐시 파일이 존재할 경우 삭제
-        if (cacheExists && cacheMinutes === 0) {
-            console.log('Delete Cache')
-            files.remove(cachePath)
-        }
 
-        console.log('Get data from Server')
-        usageData = await GetUsage()
-        lastUpdateTime = thisTime
+  // 위젯 상태에서 document path에 캐시가 존재할 경우, 캐시 영역으로 옮기고 삭제
+  if (config.runsInWidget && docExists) {
+    console.log('Move cache file to CacheDirectory from Document')
+    if (cacheExists) files.remove(cachePath)
+    files.move(docPath, cachePath)
+    cacheExists = files.fileExists(cachePath)
+    cacheDate = cacheExists ? files.modificationDate(cachePath) : 0
+  }
 
-        // cacheMinutes가 0으로 설정되어 있지 않는 경우에만 캐시 생성
-        if (cacheMinutes > 0) {
-            try {
-                files.writeString(cachePath, JSON.stringify(usageData))
-            } catch (e) {
-                console.log('Failed to create cache file')
-                console.log(e)
-            }
-        }
+  // 위젯 상태에서 실행 중이며, 캐시가 존재하고, 캐시 수정 시간이 현재 시간과 비교하였을 때 cacheMinutes 보다 적을 경우, 기존 캐시 데이터를 사용함
+  if (config.runsInWidget && cacheExists && (thisTime.getTime() - cacheDate.getTime()) < (cacheMinutes * 60 * 1000)) {
+    console.log('Use Data from Cache')
+    usageData = JSON.parse(files.readString(cachePath))
+    lastUpdateTime = cacheDate
+  } else {
+    // cacheMinutes가 0으로 설정되어 있는데 캐시 파일이 존재할 경우 삭제
+    if (cacheExists && cacheMinutes === 0) {
+      console.log('Delete Cache')
+      files.remove(cachePath)
     }
+
+    console.log('Get data from Server')
+    usageData = await GetUsage()
+    lastUpdateTime = thisTime
+
+    // cacheMinutes가 0으로 설정되어 있지 않는 경우에만 캐시 생성
+    if (cacheMinutes > 0) {
+      try {
+        files.writeString(savePath, JSON.stringify(usageData))
+        console.log('Save Cache')
+      } catch (e) {
+        console.log('Failed to create cache file')
+        console.log(e)
+      }
+  }
+  }
 
 } catch (e) {
-    console.error(e)
+  console.error(e)
 
-    if (cacheExists) {
-      console.log("Use Data from Cache")
-      data = JSON.parse(files.readString(cachePath))
-      lastUpdateTime = cacheDate
-    } else {
-      console.log("Cache does not exist.")
-    }
+  if (cacheExists) {
+    console.log("Use Data from Cache")
+    data = JSON.parse(files.readString(cachePath))
+    lastUpdateTime = cacheDate
+  } else if (docExists) {
+    console.log("Use Data from Document")
+    data = JSON.parse(files.readString(docPath))
+    lastUpdateTime = files.modificationDate(docPath)
+    files.move(docPath, cachePath)
+  } else {
+    console.log("Cache does not exist.")
+  }
 }
 
 // 데이터 변수 선언
@@ -512,12 +531,11 @@ widget.addSpacer()
 
 // Check where the script is running
 if (!config.runsInWidget) {
-    switch (config.widgetFamily) {
-      case 'small': await widget.presentSmall(); break;
-      case 'medium': await widget.presentMedium(); break;
-      case 'large': await widget.presentLarge(); break;
-    }
-
+  switch (config.widgetFamily) {
+    case 'small': await widget.presentSmall(); break;
+    case 'medium': await widget.presentMedium(); break;
+    case 'large': await widget.presentLarge(); break;
+  }
 } else {
     // Tell the system to show the widget.
     Script.setWidget(widget)
