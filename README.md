@@ -3,7 +3,7 @@
 
 <img src="./assets/widget_preview.jpg" alt="widget_preview" width="250"/>
 
-[위젯 다운로드 (최신)](https://github.com/nerious2/tplus-usage-widget-for-ios/releases/download/Release/tplus_usage_widget.scriptable)
+[위젯 다운로드 (최신)](https://github.com/nerious2/tplus-usage-widget-for-ios/releases/latest)
 
 ## 소개
 
