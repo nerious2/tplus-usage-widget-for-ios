@@ -1,56 +1,18 @@
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
+// icon-color: pink; icon-glyph: signal;
 //
 // tplus 사용량 조회 위젯 (Scriptable 전용)
-// Release Version 2022.05.22.000
 //
 // nerious2 (neriousleko@me.com)
+// Github : https://github.com/nerious2/tplus-usage-widget-for-ios
 //
-// 새로운 버전 확인 : https://github.com/nerious2/tplusUsageWidgetForIOS/releases
-//
-// !!! 반드시 아래의 User-Config 영역을 알맞게 수정한 후 사용하시기 바랍니다 !!!
-//
-//
-////////////////////////////////////////////////////////////////////////////////
-//////////////////////////         User-Config         /////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-
-// 반드시 '' (작은따옴표) 안에 공백 없이 작성할 것
-
-// tplus 계정 아이디
-const user = 'userid'
-
-// tplus 계정 비밀번호
-const pass = 'userpassword'
-
-// Widget Theme 설정
-// white, black 중에 선택하여 입력
-// black 으로 설정할 경우 다크모드 설정과 상관없이 항상 다크모드 테마로 적용됨
-const theme = 'white'
-
-// 다크모드 설정
-// 휴대폰에서 다크모드가 활성화된 경우, 위젯이 자동으로 다크모드 (black) 테마로 변경할 것인지 설정함
-// 설정할 경우 true, 비활성화할 경우 false 입력 (반드시 작은따옴표 없이 입력할 것)
-const darkmode = true
-
-// iPhone SE (1st gen) 설정
-// 기종이 아이폰SE 1세대인 경우, 위젯의 해상도가 작아서 사이즈 조절이 필요함
-// 아이폰SE 1세대에 최적화된 위젯을 원할 경우 true, 이외의 기종일 경우 false 입력 (반드시 작은따옴표 없이 입력할 것)
-const iphoneSE1 = false
-
-
-// cache 보관 시간 설정
-// 위젯이 자주 새로고침되는 것을 막기 위해, 위젯이 새로고침하기까지 캐시를 보관할 최소 시간을 지정.
-// 무제한 요금제가 아니거나, 새로고침에 의한 과도한 데이터 사용을 막고자 할 경우 시간을 길게 설정할 것
-// 0으로 설정시 캐시를 보관하지 않고 Scriptable 위젯이 새로고침되는 주기에 즉시 새로 데이터를 받아옴
-// 단위 : 분 (Minutes)
-const cacheMinutes = 60
-
+const version = '1.0-2022052600'
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////         Dev Settings         ////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-const debug = false
 config.widgetFamily = config.widgetFamily || 'small'
 
 
@@ -65,20 +27,19 @@ const logoImage = 'iVBORw0KGgoAAAANSUhEUgAAAF0AAAAlCAYAAAAgAOVvAAAAAXNSR0IArs4c6
 //////////////////////////       Const Parameter        ////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-let backColor = new Color(theme === 'black' ? '000000' : 'FFFFFF')
-let strokeColorProgressbar = new Color('E62076')
-let fillColorProgressbar = new Color('B0B0B0')
-let usageTextColor = new Color(theme === 'black' ? 'FFFFFF' : '000000')
-let lastUpdateTextColor = new Color(theme === 'black' ? 'A0A0A0' : '606060')
+// Set up file manager
+const files = FileManager.local()
 
+// Tplus Tomcat Server URL
+const tplusLoginUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/loginService.do'
+const tplusUsageUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/myPageService.do#/page/121'
 
-if (darkmode) {
-  backColor = Color.dynamic(backColor, new Color('000000'))
-  usageTextColor = Color.dynamic(usageTextColor, new Color('FFFFFF'))
-  lastUpdateTextColor = Color.dynamic(lastUpdateTextColor, new Color('A0A0A0'))
-}
+// Github Repo URL
+const githubRepoUrl = 'https://github.com/nerious2/tplus-usage-widget-for-ios'
 
-
+// widget update URL
+const versionUrl = 'https://raw.githubusercontent.com/nerious2/tplus-usage-widget-for-ios/main/version.json'
+const sourceUrl = 'https://raw.githubusercontent.com/nerious2/tplus-usage-widget-for-ios/main/tplusUsageWidget.js'
 
 // Progressbar
 const h = 10
@@ -96,8 +57,57 @@ const minimumScaleFactor = 0.8 // Value between 1.0 and 0.1
 const fontSizeLastUpdate = 14
 
 
+// Error message
+const errMsg = [
+  '로그인 실패',
+  '불러오기 실패',
+]
+
+const prefPath = files.joinPath(files.documentsDirectory(), 'tplus-usage-widget-conf.json')
+const accountPath = files.joinPath(files.documentsDirectory(), 'tplus-usage-widget-account.json')
+
+let manualUpdate = false
+
+let prefs = {
+  theme : 0,                // 0 : auto, 1 : white, 2 : dark
+  cacheMinutes : 60,
+  cacheEnable : true,
+  shortcut : 'menu',
+  widelayout : 0,           // iphone SE 1st gen 등의 호환성을 위한 넓은 레이아웃 옵션
+  update : 1,               // Auto update check 0 : 확인X, 1 : 하루 한번, 2 : 일주일 한번
+  lastupdatecheck : 0,      // Auto update check 활성화 시, 마지막으로 업데이트를 확인한 timestamp
+}
+
+let account = {
+  lastLogin : '',
+  userid : '',
+  userpw : '',
+}
+
+let usageData = {
+  data : {
+    usage : '-',
+    total : '0',
+  },
+  voice : {
+    usage : '-',
+    total : '0',
+  },
+  sms : {
+    usage : '-',
+    total : '0',
+  },
+}
+
+let shortcutArr = {
+  'refresh' : ['위젯 새로고침', '', `${URLScheme.forRunningScript()}?refresh=1`],
+  'tplusweb' : ['티플러스 사용량 조회 웹페이지', '처음 접속 시, 자동 로그인에 체크한 뒤 로그인이 필요합니다.', tplusUsageUrl],
+  'menu': ['위젯 메뉴 실행', '', `${URLScheme.forRunningScript()}`],
+}
+
+
 // Body padding & width
-const widgetPadding = iphoneSE1 ? 6 : 10
+let widgetPadding = prefs.widelayout === 1 ? 6 : 10
 const bodyPaddingTop = 4
 const bodyTitleWidth = 33
 
@@ -107,6 +117,456 @@ const bodyTitleWidth = 33
 ////////////////////////////////////////////////////////////////////////////////
 
 // Function
+function loadPref() {
+  if (files.fileExists(prefPath)) {
+    prefs = JSON.parse(files.readString(prefPath))
+  }
+
+  if (files.fileExists(accountPath)) {
+    account = JSON.parse(files.readString(accountPath))
+  }
+}
+
+function savePref() {
+  try {
+     files.writeString(prefPath, JSON.stringify(prefs))
+  } catch (e) {
+    console.error(e)
+    throw new Error('Failed to save preferences file')
+  }
+}
+
+function saveAccount() {
+  try {
+    files.writeString(accountPath, JSON.stringify(account))
+  } catch (e) {
+    console.error(e)
+    throw new Error('Failed to save account file') 
+  }
+}
+
+function removeAccount() {
+  try {
+    files.remove(accountPath)
+    account = {
+      lastLogin : '',
+      userid : '',
+      userpw : '',
+    }
+  } catch (e) {
+    console.error(e)
+    throw new Error('Failed to remove account file') 
+  }
+}
+
+async function checkVersion() {
+  const t = new Date().getTime()
+  const mainserv = await new Request(versionUrl).loadJSON()
+  prefs.lastupdatecheck = t
+  
+  savePref()
+  
+  return mainserv?.version
+}
+
+async function updateScript() {
+  const code = await new Request(sourceUrl).loadString()
+  let icloudFm = FileManager.iCloud()
+
+  try {
+  	// console.log(icloudFm.documentsDirectory())
+    icloudFm.documentsDirectory()
+    await icloudFm.writeString(`${icloudFm.documentsDirectory()}/${Script.name()}.js`, code)
+  } catch (e) {
+    console.warning(e)
+    await files.writeString(`${files.documentsDirectory()}/${Script.name()}.js`, code)
+  }
+
+  if (config.runsInApp) {
+  	Safari.open(URLScheme.forRunningScript())
+  }
+  return
+}
+
+async function checkUpdate() {
+  const t = new Date().getTime()
+
+  if (prefs.update === 0) return
+  
+  const diffDate = t - prefs.lastupdatecheck
+  const compDays = diffDate / (1000 * 3600 * 24)
+  const stdDay = prefs.update === 2 ? 7 : 1
+
+  if (compDays < stdDay) return
+
+  const updver = await checkVersion()
+
+  if (updver != version) {
+    await updateScript()
+  }
+}
+
+
+async function createMenuTable() {
+  loadPref()
+
+  let table = new UITable()
+  table.showSeparators = true
+  
+  function loadTable() {
+    let row0 = new UITableRow()
+    row0.height = 70
+    row0.dismissOnSelect = true
+    
+    let text0 = row0.addText('즉시 새로고침', '지금 위젯을 즉시 새로고침 합니다.')
+    text0.titleFont = Font.boldSystemFont(15)
+    text0.subtitleFont = Font.systemFont(14)
+
+    table.addRow(row0)
+
+    row0.onSelect = async () => {
+      if (account.userid == '' || account.userpw == '') {
+        const prompt = new Alert()
+        prompt.message = '계정이 설정되지 않았습니다.\n계정을 먼저 설정해주세요.'
+        prompt.addAction('확인')
+        await prompt.presentAlert()
+        await createMenuTable()
+      } else {
+        manualUpdate = true
+      }
+    }
+    
+    
+    let row1 = new UITableRow()
+    row1.height = 70
+    row1.dismissOnSelect = false
+    
+    let text1 = row1.addText(`계정 설정 : ${!files.fileExists(accountPath) || account.userid == '' ? '설정되지 않음' : account.userid}`, `마지막 로그인 시간 : ${account.lastLogin == '' ? '정보 없음' : account.lastLogin}`)
+    text1.titleFont = Font.boldSystemFont(15)
+    text1.subtitleFont = Font.systemFont(14)
+    
+    table.addRow(row1)
+    
+    row1.onSelect = async () => {
+      let alert = new Alert()
+      alert.title = '티플러스 계정을 입력하세요.'
+      alert.addTextField('ID 입력', '')
+      alert.addSecureTextField('Password 입력', '')
+      alert.addAction("확인")
+      alert.addCancelAction("취소")
+      if (await alert.present() == 0) {
+        const id = alert.textFieldValue(0)
+        const pw = alert.textFieldValue(1)
+        
+        if (id == '' || pw == '') {
+          let alert2 = new Alert()
+          alert2.message = 'ID 혹은 Password가 입력되지 않았습니다.'
+          alert2.addAction('확인')
+          await alert2.present()
+        } else {
+          account.userid = id
+          account.userpw = pw
+          
+          try {
+            saveAccount()
+          } catch (e) {
+            console.error(e)
+            let alert2 = new Alert()
+            alert2.message = '계정 정보를 저장하는 중 오류가 발생했습니다.'
+            alert2.addAction('확인')
+            await alert2.present()
+          }
+        }
+      }
+      refreshTable()
+    }
+
+
+    let row2 = new UITableRow()
+    row2.height = 70
+    row2.dismissOnSelect = false
+
+    const optionWidgetTheme = ['시스템 테마에 따름', '밝은 테마 고정', '어두운 테마 고정']
+    let text2 = row2.addText(`위젯 테마 설정 : ${optionWidgetTheme[prefs.theme]}`, '위젯의 테마를 변경합니다.')
+    text2.titleFont = Font.boldSystemFont(15)
+    text2.subtitleFont = Font.systemFont(14)
+    
+    table.addRow(row2)
+    
+    row2.onSelect = async () => {
+      let alert = new Alert()
+      optionWidgetTheme.forEach(element => alert.addAction(element))
+      alert.addCancelAction("취소")
+      const result = await alert.presentSheet()
+      if (result != -1) {
+        prefs.theme = result
+      }
+      refreshTable()
+    }
+
+
+    let row6 = new UITableRow()
+    row6.height = 70
+    row6.dismissOnSelect = false
+
+    const optionWidgetLayout = ['기본값', '여백 줄이기']
+    let text6 = row6.addText(`위젯 레이아웃 설정 : ${optionWidgetLayout[prefs.widelayout]}`, '아이폰SE 1세대 등의 일부 기기에서 위젯 레이아웃이 깨질 경우 \'여백 줄이기\'를 선택하세요.')
+    text6.titleFont = Font.boldSystemFont(15)
+    text6.subtitleFont = Font.systemFont(14)
+    
+    table.addRow(row6)
+    
+    row6.onSelect = () => {
+      if (prefs.widelayout === 0) prefs.widelayout = 1
+      else prefs.widelayout = 0
+      refreshTable()
+    }
+
+
+    let row7 = new UITableRow()
+    row7.height = 70
+    row7.dismissOnSelect = false
+
+    let text7 = row7.addText(`위젯 자동 새로고침 설정 : ${prefs.cacheEnable ? '활성화' : '비활성화'}`, '위젯을 자동으로 새로고침할 것인지 설정합니다. 비활성화 시 수동으로 새로고침해야 합니다.')
+    text7.titleFont = Font.boldSystemFont(15)
+    text7.subtitleFont = Font.systemFont(14)
+    
+    table.addRow(row7)
+    
+    row7.onSelect = () => {
+      if (prefs.cacheEnable) prefs.cacheEnable = false
+      else prefs.cacheEnable = true
+      refreshTable()
+    }
+
+
+    if (prefs.cacheEnable) {
+      let row3 = new UITableRow()
+      row3.height = 70
+      row3.dismissOnSelect = false
+  
+      let text3 = row3.addText(`위젯 자동 새로고침 최소 주기 : ${prefs.cacheMinutes === 0 ? '캐시 보관 안함(즉시 갱신)' : `${prefs.cacheMinutes}분`}`, '새로고침 이후 캐시를 보관할 주기를 설정합니다. (경고 : 주기가 짧을 수록 많은 데이터가 소모될 수 있습니다)')
+      text3.titleFont = Font.boldSystemFont(15)
+      text3.subtitleFont = Font.systemFont(14)
+      
+      table.addRow(row3)
+      
+      row3.onSelect = async () => {
+        let alert = new Alert()
+        alert.title = '위젯 최소 보관 시간을 입력하세요.\n(분 단위로 입력, 0으로 설정 시 캐시 보관 없이 새로고침 때 마다 데이터 조회)'
+        let numInput = alert.addTextField('분 단위로 입력', `${prefs.cacheMinutes}`)
+        numInput.setNumberPadKeyboard()
+        alert.addAction("확인")
+        alert.addCancelAction("취소")
+        if (await alert.present() == 0) {
+          const n = alert.textFieldValue(0)
+          
+          if (n == '' || Number(n) < 0 || isNaN(Number(n))) {
+            let alert2 = new Alert()
+            alert2.message = '올바른 값이 아닙니다.\n0 이상의 숫자로만 입력하세요.'
+            alert2.addAction('확인')
+            await alert2.present()
+          } else {
+            prefs.cacheMinutes = Number(n)
+          }
+        }
+        refreshTable()
+      }
+    }
+
+    let row4 = new UITableRow()
+    row4.height = 70
+    row4.dismissOnSelect = false
+
+    let text4 = row4.addText(`바로가기 설정 : ${shortcutArr[prefs.shortcut][0]}`, '위젯을 클릭하였을 때 동작할 바로가기를 설정합니다.')
+    text4.titleFont = Font.boldSystemFont(15)
+    text4.subtitleFont = Font.systemFont(14)
+  
+    table.addRow(row4)
+    
+    row4.onSelect = async () => {
+      let shortcut = new UITable()
+      shortcut.showSeparators = true
+      
+      for(index in shortcutArr){
+        let row = new UITableRow()
+        row.height = 60
+        let text = row.addText(`${prefs.shortcut == index ? '☑️ ' : ''}${shortcutArr[index][0]}`, `${shortcutArr[index][1]}`)
+        text.titleFont = Font.boldSystemFont(14)
+        text.subtitleFont = Font.systemFont(12)
+        
+        shortcut.addRow(row)
+        
+        row.onSelect = (n) => {
+          prefs.shortcut = Object.keys(shortcutArr)[n]
+        }
+      }
+      
+      await shortcut.present()
+      refreshTable()
+    }
+
+    
+    let row5 = new UITableRow()
+    row5.height = 70
+    row5.dismissOnSelect = false
+    
+    let text5 = row5.addText('위젯 정보', '티플러스 사용량 위젯 정보')
+    text5.titleFont = Font.boldSystemFont(15)
+    text5.subtitleFont = Font.systemFont(14)
+    
+    table.addRow(row5)
+
+    row5.onSelect = async () => {
+      let widgetInfo = new UITable()
+      widgetInfo.showSeparators = true
+
+      function loadWidgetInfoTable() {
+        let widgetInfoRow0 = new UITableRow()
+        widgetInfoRow0.height = 70
+        widgetInfoRow0.dismissOnSelect = false
+        
+        let widgetInfoText0 = widgetInfoRow0.addText(`위젯 업데이트 확인 (버전 : ${version})`, '위젯의 최신 버전이 있는지 확인합니다.')
+        widgetInfoText0.titleFont = Font.boldSystemFont(15)
+        widgetInfoText0.subtitleFont = Font.systemFont(14)
+
+        widgetInfo.addRow(widgetInfoRow0)
+
+        widgetInfoRow0.onSelect = async () => {
+          const updver = await checkVersion()
+          
+          let alert = new Alert()
+          if (version == updver) {
+            alert.message = '현재 최신버전을 사용하고 있습니다.'
+            alert.addAction('확인')
+            await alert.presentSheet() 
+          } else if (updver == undefined){
+            alert.message = '서버에서 버전을 가져오지 못했습니다.\n잠시 후 다시 시도하세요.'
+            alert.addAction('확인')
+            await alert.persentSheet()
+          } else {
+            alert.message = `버전 ${updver}이 발견되었습니다.\n업데이트를 진행할까요?`
+            alert.addAction('확인')
+            alert.addCancelAction('취소')
+            const result = await alert.presentSheet()
+            if (result === 0) {
+              await updateScript()
+            } 
+          }
+          refreshWidgetInfoTable()
+        }
+
+
+        let widgetInfoRow1 = new UITableRow()
+        widgetInfoRow1.height = 70
+        widgetInfoRow1.dismissOnSelect = false
+        
+        const optionAutoUpdateMenu = ["확인하지 않음", "하루에 한 번 확인", "일주일에 한 번 확인"]
+        let widgetInfoText1 = widgetInfoRow1.addText(`위젯 자동 업데이트 설정 : ${optionAutoUpdateMenu[prefs.update]}`, '최신 버전이 있는지 자동으로 체크하여 업데이트하는 주기를 설정합니다.')
+        widgetInfoText1.titleFont = Font.boldSystemFont(15)
+        widgetInfoText1.subtitleFont = Font.systemFont(14)
+
+        widgetInfo.addRow(widgetInfoRow1)
+
+        widgetInfoRow1.onSelect = async () => {
+          let alert = new Alert()
+          optionAutoUpdateMenu.forEach(element => alert.addAction(element))
+          alert.addCancelAction("취소")
+          const result = await alert.presentSheet()
+          if (result != -1) {
+            prefs.update = result
+          }
+          refreshWidgetInfoTable()
+        }
+
+        if (files.fileExists(accountPath)) {
+          let widgetInfoRow2 = new UITableRow()
+          widgetInfoRow2.height = 70
+          widgetInfoRow2.dismissOnSelect = false
+      
+          let widgetInfoText2 = widgetInfoRow2.addText('계정 정보 삭제', '기기에 저장된 계정 정보를 삭제합니다.')
+          widgetInfoText2.titleFont = Font.boldSystemFont(15)
+          widgetInfoText2.subtitleFont = Font.systemFont(14)
+        
+          widgetInfo.addRow(widgetInfoRow2)
+          
+          widgetInfoRow2.onSelect = async () => {
+            let alert = new Alert()
+            alert.title = '계정 정보를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'
+            alert.addDestructiveAction("삭제")
+            alert.addCancelAction("취소")
+            const result = await alert.presentSheet()
+            if (result === 0) {
+              try {
+                removeAccount()
+              } catch (e) {
+                console.error(e)
+                let alert2 = new Alert()
+                alert2.message = '계정 정보를 삭제하는 중 오류가 발생했습니다.'
+                alert2.addAdcion('확인')
+                await alert2.present()
+              }
+            }
+            refreshWidgetInfoTable()
+          }
+        }
+
+        let widgetInfoRow3 = new UITableRow()
+        widgetInfoRow3.height = 70
+        widgetInfoRow3.dismissOnSelect = false
+        
+        let widgetInfoText3 = widgetInfoRow3.addText('Github Repo 바로가기', '티플러스 사용량 위젯의 Github 페이지를 방문합니다.')
+        widgetInfoText3.titleFont = Font.boldSystemFont(15)
+        widgetInfoText3.subtitleFont = Font.systemFont(14)
+
+        widgetInfo.addRow(widgetInfoRow3)
+
+        widgetInfoRow3.onSelect = () => {
+          Safari.open(githubRepoUrl)
+        }
+
+        let widgetInfoRow4 = new UITableRow()
+        widgetInfoRow4.height = 70
+        widgetInfoRow4.dismissOnSelect = false
+        
+        let widgetInfoText4 = widgetInfoRow4.addText('개발자에게 커피 한 잔 사주기', '후원해 주셔서 대단히 감사드립니다.')
+        widgetInfoText4.titleFont = Font.boldSystemFont(15)
+        widgetInfoText4.subtitleFont = Font.systemFont(14)
+
+        widgetInfo.addRow(widgetInfoRow4)
+
+        widgetInfoRow4.onSelect = () => {
+          Safari.open('https://toss.me/nerious2/1900')
+        }
+      }
+
+      function refreshWidgetInfoTable(){
+        widgetInfo.removeAllRows()
+        loadWidgetInfoTable()
+        widgetInfo.reload()
+      }
+
+      loadWidgetInfoTable()
+      await widgetInfo.present()
+      savePref()
+
+      refreshTable()
+    }
+  }
+  
+  function refreshTable(){
+    table.removeAllRows()
+    loadTable()
+    table.reload()
+  }
+  
+  loadTable()
+  await table.present()
+  
+  savePref()
+}
+
+
 function creatProgress(total, usage) {
   const context = new DrawContext()
   context.size = new Size(width, h)
@@ -127,7 +587,7 @@ function creatProgress(total, usage) {
   context.fillPath()
   
   // Progress Path
-  context.setFillColor(strokeColorProgressbar)  
+  context.setFillColor(strokeColorProgressbar)
   const path1 = new Path()
   const path1width = (width * (usage / total) > width) ? width : width * (usage / total)
   path1.addRoundedRect(new Rect(0, 0, path1width, h), 4, 10)
@@ -137,32 +597,47 @@ function creatProgress(total, usage) {
 }
 
 async function GetUsage() {
+  let final = {
+    data : {
+      usage : '-',
+      total : '0',
+    },
+    voice : {
+      usage : '-',
+      total : '0',
+    },
+    sms : {
+      usage : '-',
+      total : '0',
+    },
+  }
+
   let v = new WebView()
-  await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/myPageService.do#/page/121')
+  await v.loadURL(tplusUsageUrl)
   
-  console.log('wait 100ms')
+  // console.log('wait 100ms')
   sleep(100)
   
   let result = await v.evaluateJavaScript(`
     let usd = document.getElementsByClassName('overlay alert')[0].style.display
     usd
   `)
-  console.log('overlay alert')
-  console.log(result)
+  // console.log('overlay alert')
+  // console.log(result)
   
   if (result.indexOf('block') !== -1) {
-    console.log('login start')
-    await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/loginService.do')
+    // console.log('login start')
+    await v.loadURL(tplusLoginUrl)
   
     await v.evaluateJavaScript(`
-      let user = '${user}'
-      let pass = '${pass}'
+      let user = '${account.userid}'
+      let pass = '${account.userpw}'
       document.getElementById('uid').value = user
       document.getElementById('upw').value = pass
       document.getElementById('autoLoginChk').value = true
       document.getElementsByClassName('btn btn_full btn_login')[0].click()
     `)
-    await v.loadURL('https://csma.tplusmobile.com:1443/KCT_CSMA/myPageService.do#/page/121')
+    await v.loadURL(tplusUsageUrl)
   }
   
   // loading 끝날때 까지 대기 (5초)
@@ -171,10 +646,10 @@ async function GetUsage() {
       document.getElementsByClassName('overlay_load')[0].style.display
     `)
     if (result === 'none') {
-      console.log('break')
+      // console.log('break')
       break
     } else {
-      console.log('sleep 100ms')
+      // console.log('sleep 100ms')
       sleep(100)
     }
   }
@@ -187,16 +662,35 @@ async function GetUsage() {
     
   if (result === 'block') {
     // 불러오기 실패 예외 처리
-    console.log('login failed -> widget end')
-    console.log(result)
-    const prompt = new Alert()
-    prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
-    prompt.addAction('확인')
-    await prompt.presentAlert()
+    // console.log('login failed -> widget end')
+    // console.log(result)
+    
+    final.data.usage = errMsg[0]
+    
+    if (!config.runsInWidget) {
+      const prompt = new Alert()
+      prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
+      prompt.addAction('확인')
+      await prompt.presentAlert()
+    }
 
-    throw new Error('Failed to Login')
+    // throw new Error('Failed to Login')
+    return final
   }
 
+  // record last login time
+  const t = new Date()
+  let df = new DateFormatter()
+  df.locale = "ko-kr"
+  df.useLongDateStyle()
+  df.useMediumTimeStyle()
+  account.lastLogin = df.string(t)
+
+  try {
+    saveAccount()
+  } catch (e) {
+    console.error(e)
+  }
 
   result = await v.evaluateJavaScript(`
     document.getElementsByClassName('progress__label').length
@@ -204,9 +698,21 @@ async function GetUsage() {
     
   if (result !== 4) {
     // 불러오기 실패 예외 처리
-    console.log('loading failed -> widget end')
-    console.log(result)
-    throw new Error('Failed to get data from server.')
+    // console.log('loading failed -> widget end')
+    // console.log(result)
+    // throw new Error('Failed to get data from server')
+
+    final.data.usage = errMsg[1]
+
+    if (!config.runsInWidget) {
+      const prompt = new Alert()
+      prompt.message = '정보를 가져오지 못했습니다. 네트워크 상태를 확인하세요.'
+      prompt.addAction('확인')
+      await prompt.presentAlert()
+    }
+
+    // throw new Error('Failed to Login')
+    return final
   }
   
   
@@ -228,11 +734,6 @@ async function GetUsage() {
   `)
   // console.log(usage)
 
-  let final = new Object()
-  final.data = new Object()
-  final.voice = new Object()
-  final.sms = new Object()
-
   // 데이터 단위 추출
   final.data.usage = remain[1].substring(remain[1].indexOf('(') + 1, remain[1].lastIndexOf(')')).trim()
   final.data.total =  usage[1].substring(usage[1].indexOf('(') + 1, usage[1].lastIndexOf(')')).trim()
@@ -243,28 +744,48 @@ async function GetUsage() {
   final.sms.usage = remain[2].substring(remain[2].indexOf('(') + 1, remain[2].lastIndexOf(')')).trim()
   final.sms.total = usage[2].substring(usage[2].indexOf('(') + 1, usage[2].lastIndexOf(')')).trim()
 
-
-
-  console.log(JSON.stringify(final))
-
   return final
 }
 
 function sleep(ms) {
-  // const timer = new Timer
-
-  // await timer.add(ms)
-  
   var startTime = new Date().getTime()
   while (new Date().getTime() < startTime + ms);
-  
 }
 
+
 // Main
+loadPref()
+
+await checkUpdate()
+
+if (config.runsInApp) {
+  if (args.queryParameters?.refresh == '1') {
+    manualUpdate = true
+  } else {
+    await createMenuTable()
+  }
+  if (!manualUpdate) {
+    return Script.complete()
+  }
+}
 
 
-// Set up file manager
-const files = FileManager.local()
+// widget padding setting
+widgetPadding = prefs.widelayout === 1 ? 6 : 10
+
+// theme color
+let backColor = new Color(prefs.theme === 2 ? '000000' : 'FFFFFF')
+let strokeColorProgressbar = new Color('E62076')
+let fillColorProgressbar = new Color('B0B0B0')
+let usageTextColor = new Color(prefs.theme === 2 ? 'FFFFFF' : '000000')
+let lastUpdateTextColor = new Color(prefs.theme === 2 ? 'A0A0A0' : '606060')
+
+if (prefs.theme === 0) {
+  backColor = Color.dynamic(backColor, new Color('000000'))
+  usageTextColor = Color.dynamic(usageTextColor, new Color('FFFFFF'))
+  lastUpdateTextColor = Color.dynamic(lastUpdateTextColor, new Color('A0A0A0'))
+}
+
 
 // Set up Cache
 const cachePath = files.joinPath(files.cacheDirectory(), 'tplus-usage-widget-cache')
@@ -277,27 +798,14 @@ const savePath = config.runsInWidget ? cachePath : docPath;
 // Check Cache
 const thisTime = new Date()
 let lastUpdateTime
-let usageData = {
-  data : {
-    usage : '불러오기 실패',
-    total : '0',
-  },
-  voice : {
-    usage : '불러오기 실패',
-    total : '0',
-  },
-  sms : {
-    usage : '불러오기 실패',
-    total : '0',
-  },
-}
+
 
 
 try {
 
   // 위젯 상태에서 document path에 캐시가 존재할 경우, 캐시 영역으로 옮기고 삭제
   if (config.runsInWidget && docExists) {
-    console.log('Move cache file to CacheDirectory from Document')
+    // console.log('Move cache file to CacheDirectory from Document')
     if (cacheExists) files.remove(cachePath)
     files.move(docPath, cachePath)
     cacheExists = files.fileExists(cachePath)
@@ -305,42 +813,41 @@ try {
   }
 
   // 위젯 상태에서 실행 중이며, 캐시가 존재하고, 캐시 수정 시간이 현재 시간과 비교하였을 때 cacheMinutes 보다 적을 경우, 기존 캐시 데이터를 사용함
-  if (config.runsInWidget && cacheExists && (thisTime.getTime() - cacheDate.getTime()) < (cacheMinutes * 60 * 1000)) {
-    console.log('Use Data from Cache')
+  if (config.runsInWidget && cacheExists && (thisTime.getTime() - cacheDate.getTime()) < (prefs.cacheMinutes * 60 * 1000)) {
+    // console.log('Use Data from Cache')
     usageData = JSON.parse(files.readString(cachePath))
     lastUpdateTime = cacheDate
   } else {
     // cacheMinutes가 0으로 설정되어 있는데 캐시 파일이 존재할 경우 삭제
-    if (cacheExists && cacheMinutes === 0) {
-      console.log('Delete Cache')
+    if (cacheExists && prefs.cacheMinutes === 0) {
+      // console.log('Delete Cache')
       files.remove(cachePath)
     }
 
-    console.log('Get data from Server')
-    usageData = await GetUsage()
+    // console.log('Get data from Server')
     lastUpdateTime = thisTime
+    usageData = await GetUsage()
 
     // cacheMinutes가 0으로 설정되어 있지 않는 경우에만 캐시 생성
-    if (cacheMinutes > 0) {
+    if (prefs.cacheMinutes > 0) {
       try {
         files.writeString(savePath, JSON.stringify(usageData))
-        console.log('Save Cache')
+        // console.log('Save Cache')
       } catch (e) {
-        console.log('Failed to create cache file')
-        console.log(e)
+        // console.log('Failed to create cache file')
+        console.warning(e)
       }
+    }
   }
-  }
-
 } catch (e) {
   console.error(e)
 
   if (cacheExists) {
-    console.log("Use Data from Cache")
+    // console.log("Use Data from Cache")
     data = JSON.parse(files.readString(cachePath))
     lastUpdateTime = cacheDate
   } else if (docExists) {
-    console.log("Use Data from Document")
+    // console.log("Use Data from Document")
     data = JSON.parse(files.readString(docPath))
     lastUpdateTime = files.modificationDate(docPath)
     files.move(docPath, cachePath)
@@ -359,14 +866,12 @@ let voiceTotal = usageData.voice.total
 let smsUsage = usageData.sms.usage
 let smsTotal = usageData.sms.total
 
-
 //=========================================
 // Widget
 //=========================================
 let widget = new ListWidget()
 widget.setPadding(widgetPadding, widgetPadding, widgetPadding, widgetPadding)
 widget.backgroundColor = backColor
-
 
 //=========================================
 // Title (Logo, Last update time)
@@ -427,7 +932,7 @@ let dataTitleStack = dataStack.addStack()
 dataTitleStack.setPadding(0, 0, 0, 0)
 dataTitleStack.size = new Size(bodyTitleWidth, h + 5)
 
-let dataTitleText = dataTitleStack.addText("데이터")
+let dataTitleText = dataTitleStack.addText('데이터')
 dataTitleText.font = Font.mediumSystemFont(fontSizeData)
 dataTitleText.minimumScaleFactor = minimumScaleFactor
 dataTitleText.lineLimit = lineNumberData
@@ -454,7 +959,6 @@ dataUsageText.textColor = usageTextColor
 dataUsageText.rightAlignText()
 
 
-
 // Voice
 let voiceStack = widget.addStack()
 voiceStack.setPadding(bodyPaddingTop, 0, 0, 0)
@@ -462,7 +966,7 @@ voiceStack.setPadding(bodyPaddingTop, 0, 0, 0)
 let voiceTitleStack = voiceStack.addStack()
 voiceTitleStack.size = new Size(bodyTitleWidth, h + 5)
 
-let voiceTitleText = voiceTitleStack.addText("음성")
+let voiceTitleText = voiceTitleStack.addText('음성')
 voiceTitleText.font = Font.mediumSystemFont(fontSizeData)
 voiceTitleText.minimumScaleFactor = minimumScaleFactor
 voiceTitleText.lineLimit = lineNumberData
@@ -498,7 +1002,7 @@ smsStack.setPadding(bodyPaddingTop, 0, 0, 0)
 let smsTitleStack = smsStack.addStack()
 smsTitleStack.size = new Size(bodyTitleWidth, h + 5)
 
-let smsTitleText = smsTitleStack.addText("문자")
+let smsTitleText = smsTitleStack.addText('문자')
 smsTitleText.font = Font.mediumSystemFont(fontSizeData)
 smsTitleText.minimumScaleFactor = minimumScaleFactor
 smsTitleText.lineLimit = lineNumberData
@@ -526,8 +1030,7 @@ smsUsageText.textColor = usageTextColor
 smsUsageText.rightAlignText()
 
 widget.addSpacer()
-
-
+widget.url = shortcutArr[prefs.shortcut][2]
 
 // Check where the script is running
 if (!config.runsInWidget) {
