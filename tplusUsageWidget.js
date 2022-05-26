@@ -7,7 +7,7 @@
 // nerious2 (neriousleko@me.com)
 // Github : https://github.com/nerious2/tplus-usage-widget-for-ios
 //
-const version = '1.0-2022052600'
+const version = '1.0-2022052601'
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////         Dev Settings         ////////////////////////
@@ -803,9 +803,9 @@ let lastUpdateTime
 
 try {
 
-  // 위젯 상태에서 document path에 캐시가 존재할 경우, 캐시 영역으로 옮기고 삭제
+  // 위젯 상태에서 library path에 캐시가 존재할 경우, 캐시 영역으로 옮기고 삭제
   if (config.runsInWidget && docExists) {
-    // console.log('Move cache file to CacheDirectory from Document')
+    // console.log('Move cache file to CacheDirectory from library')
     if (cacheExists) files.remove(cachePath)
     files.move(docPath, cachePath)
     cacheExists = files.fileExists(cachePath)
@@ -813,7 +813,7 @@ try {
   }
 
   // 위젯 상태에서 실행 중이며, 캐시가 존재하고, 캐시 수정 시간이 현재 시간과 비교하였을 때 cacheMinutes 보다 적을 경우, 기존 캐시 데이터를 사용함
-  if (config.runsInWidget && cacheExists && (thisTime.getTime() - cacheDate.getTime()) < (prefs.cacheMinutes * 60 * 1000)) {
+  if (config.runsInWidget && cacheExists && ( (thisTime.getTime() - cacheDate.getTime()) < (prefs.cacheMinutes * 60 * 1000) || !prefs.cacheEnable)) {
     // console.log('Use Data from Cache')
     usageData = JSON.parse(files.readString(cachePath))
     lastUpdateTime = cacheDate
