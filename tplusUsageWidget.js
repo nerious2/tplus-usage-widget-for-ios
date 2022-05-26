@@ -7,7 +7,7 @@
 // nerious2 (neriousleko@me.com)
 // Github : https://github.com/nerious2/tplus-usage-widget-for-ios
 //
-const version = '1.0-2022052602'
+const version = '1.0-2022052603'
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////         Dev Settings         ////////////////////////
@@ -663,18 +663,24 @@ async function GetUsage() {
     // 불러오기 실패 예외 처리
     // console.log('login failed -> widget end')
     // console.log(result)
-    
-    final.data.usage = errMsg[0]
-    
-    if (!config.runsInWidget) {
-      const prompt = new Alert()
-      prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
-      prompt.addAction('확인')
-      await prompt.presentAlert()
-    }
 
-    // throw new Error('Failed to Login')
-    return final
+    result = await v.evaluateJavaScript(`
+      document.getElementById('popup_message').innerText
+    `)
+
+    if (result.includes('로그인이 필요한 화면입니다.')) {
+      final.data.usage = errMsg[0]
+    
+      if (!config.runsInWidget) {
+        const prompt = new Alert()
+        prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
+        prompt.addAction('확인')
+        await prompt.presentAlert()
+      }
+  
+      // throw new Error('Failed to Login')
+      return final
+    }
   }
 
   // record last login time
