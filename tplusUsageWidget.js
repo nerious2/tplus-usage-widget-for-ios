@@ -7,7 +7,7 @@
 // nerious2 (neriousleko@me.com)
 // Github : https://github.com/nerious2/tplus-usage-widget-for-ios
 //
-const version = '1.0-2022052601'
+const version = '1.0-2022052602'
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////         Dev Settings         ////////////////////////
@@ -174,11 +174,10 @@ async function updateScript() {
   let icloudFm = FileManager.iCloud()
 
   try {
-  	// console.log(icloudFm.documentsDirectory())
     icloudFm.documentsDirectory()
     await icloudFm.writeString(`${icloudFm.documentsDirectory()}/${Script.name()}.js`, code)
   } catch (e) {
-    console.warning(e)
+    console.log(e)
     await files.writeString(`${files.documentsDirectory()}/${Script.name()}.js`, code)
   }
 
@@ -835,7 +834,7 @@ try {
         // console.log('Save Cache')
       } catch (e) {
         // console.log('Failed to create cache file')
-        console.warning(e)
+        console.error(e)
       }
     }
   }
