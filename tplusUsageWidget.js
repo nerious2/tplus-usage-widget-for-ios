@@ -7,7 +7,7 @@
 // nerious2 (neriousleko@me.com)
 // Github : https://github.com/nerious2/tplus-usage-widget-for-ios
 //
-const version = '1.0-2022052800'
+const version = '1.1-2022053100'
 
 ////////////////////////////////////////////////////////////////////////////////
 //////////////////////////         Dev Settings         ////////////////////////
@@ -31,10 +31,17 @@ const logoImage = 'iVBORw0KGgoAAAANSUhEUgAAAF0AAAAlCAYAAAAgAOVvAAAAAXNSR0IArs4c6
 // Set up file manager
 const files = FileManager.local()
 
-// Tplus Tomcat Server URL
-const tplusLoginUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/loginService.do'
-const tplusLogoutUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/logoutService.do'
-const tplusMainUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/mainService.do'
+// Tplus URL
+const tplusAppLoginUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/loginService.do'
+const tplusAppLogoutUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/logoutService.do'
+const tplusAppMainUrl = 'https://csma.tplusmobile.com:1443/KCT_CSMA/mainService.do'
+const tplusWebLoginUrl = 'https://www.tplusmobile.com/view/mytplus/login.do'
+const tplusWebLogoutUrl = 'https://www.tplusmobile.com/view/mytplus/loginout.do'
+const tplusWebMainUrl = 'https://www.tplusmobile.com/view/mytplus/getPrductrecomend.do'
+
+let tplusLoginUrl = tplusAppLoginUrl
+let tplusLogoutUrl = tplusAppLogoutUrl
+let tplusMainUrl = tplusAppMainUrl
 
 // Github Repo URL
 const githubRepoUrl = 'https://github.com/nerious2/tplus-usage-widget-for-ios'
@@ -70,7 +77,7 @@ const accountPath = files.joinPath(files.documentsDirectory(), 'tplus-usage-widg
 
 let manualUpdate = false
 
-let prefs = {
+let defaultPrefs = {
   theme : 0,                // 0 : auto, 1 : white, 2 : dark
   cacheMinutes : 60,
   cacheEnable : true,
@@ -78,7 +85,10 @@ let prefs = {
   widelayout : 0,           // iphone SE 1st gen 등의 호환성을 위한 넓은 레이아웃 옵션
   update : 1,               // Auto update check 0 : 확인X, 1 : 하루 한번, 2 : 일주일 한번
   lastupdatecheck : 0,      // Auto update check 활성화 시, 마지막으로 업데이트를 확인한 timestamp
+  servType : 'app',         // 서버에서 데이터를 가져오는 방식
 }
+
+let prefs = defaultPrefs
 
 let account = {
   lastLogin : '',
@@ -102,9 +112,38 @@ let usageData = {
 }
 
 let shortcutArr = {
-  'refresh' : ['위젯 새로고침', '', `${URLScheme.forRunningScript()}?refresh=1`],
-  'tplusweb' : ['티플러스 사용량 조회 웹페이지', '처음 접속 시, 자동 로그인에 체크한 뒤 로그인이 필요합니다.', tplusMainUrl],
-  'menu': ['위젯 메뉴 실행', '', `${URLScheme.forRunningScript()}`],
+  'refresh' : [
+    '위젯 새로고침',
+    '',
+    `${URLScheme.forRunningScript()}?refresh=1`
+  ],
+  'tplusweb' : [
+    '티플러스 사용량 조회 웹페이지',
+    '처음 접속 시, 자동 로그인에 체크한 뒤 로그인이 필요합니다.',
+    tplusMainUrl
+  ],
+  'menu': [
+    '위젯 메뉴 실행',
+    '',
+    `${URLScheme.forRunningScript()}`
+  ],
+}
+
+const servTypeArr = {
+  'app' : [
+    '고객센터 앱 서버 (SKT망 전용)',
+    '고객센터 앱 서버로 정보를 가져옵니다. 1회 시도 시 약 0.1MB 소모',
+    tplusAppLoginUrl,
+    tplusAppLogoutUrl,
+    tplusAppMainUrl,
+  ],
+  'web' : [
+    '티플러스 웹 페이지',
+    '웹 페이지에서 정보를 가져옵니다. 로그인이 풀린 경우 약 4 ~ 6MB, 로그인이 유지된 상태에서 1회 시도 시 약 0.3 ~ 0.4MB 소모',
+    tplusWebLoginUrl,
+    tplusWebLogoutUrl,
+    tplusWebMainUrl,
+  ],
 }
 
 
@@ -140,11 +179,24 @@ function printlog(e) {
 function loadPref() {
   if (files.fileExists(prefPath)) {
     prefs = JSON.parse(files.readString(prefPath))
+
+    // 누락된 항목에 대해 기본값 세팅
+    for(key in defaultPrefs) {
+      if (!prefs.hasOwnProperty(key)) {
+        printlog(`make default prefs ${key} ${defaultPrefs[key]}`)
+        prefs[key] = defaultPrefs[key]
+      }
+    }
   }
+
+  tplusLoginUrl = servTypeArr[prefs.servType][2]
+  tplusLogoutUrl = servTypeArr[prefs.servType][3]
+  tplusMainUrl = servTypeArr[prefs.servType][4]
 
   if (files.fileExists(accountPath)) {
     account = JSON.parse(files.readString(accountPath))
   }
+  
 }
 
 function savePref() {
@@ -154,6 +206,10 @@ function savePref() {
     console.error(e)
     throw new Error('Failed to save preferences file')
   }
+}
+
+function changeServType(servType) {
+  
 }
 
 function saveAccount() {
@@ -283,102 +339,37 @@ async function createMenuTable() {
           prompt.addAction('확인')
           await prompt.present()
         } else {
-          // prompt.message = '로그인 검증 중...\n다음 팝업이 뜨면 해당 팝업을 끄셔도 됩니다.\n(이 작업은 중간에 취소할 수 없습니다)'
-          // prompt.presentSheet()
-          // // 로그인 되는지 검증
-          // printlog('Start login')
-          // let v = new WebView()
-          // printlog('Create WebView')
-          // // await v.loadURL(tplusLogoutUrl)
-          // // printlog('wait 1000ms')
-          // // await timer.add(1000)
-          // // // printlog('Start login 2')
-          // // await v.waitForLoad()
-          // await v.loadURL(tplusLogoutUrl)
-          // await v.waitForLoad()
-          // // console.log('wait 1000ms')
-          // // sleep(1000)
-      
-          // let result = await v.evaluateJavaScript(`
-          //   document.getElementsByClassName('no_login_box')[0].style.display
-          // `)
-          // console.log(result)
-          // await v.loadURL(tplusLoginUrl)
-          // printlog('login')
-
-          // await v.evaluateJavaScript(`
-          //   document.getElementById('uid').value = '${id}'
-          //   document.getElementById('upw').value = '${pw}'
-          //   document.getElementById('autoLoginChk').value = true
-          //   document.getElementsByClassName('btn btn_full btn_login')[0].click()
-          // `)
-
-
-          // await v.waitForLoad()
-          // await v.getHTML()         // fix to failed login (2022.05.28)
-          // sleep(500)
-
-          // printlog('load page')
-          // await v.loadURL(tplusMainUrl)
-          // printlog('check page')
-          // // await v.waitForLoad()
-
-          // sleep(100)
-
-          // // loading 끝날때 까지 대기 (5초)
-          // for (let i = 0; i < 50; i++) {
-          //   result = await v.evaluateJavaScript(`  
-          //     document.getElementsByClassName('overlay_load')[0].style.display
-          //   `)
-          //   if (result === 'none') {
-          //     printlog('break')
-          //     break
-          //   } else {
-          //     printlog('sleep 100ms')
-          //     sleep(100)
-          //   }
-          // }
-
-
-
-          // // 정상적으로 불러왔는지 검증
-          // // 로그인 실패 검사
-          // result = await v.evaluateJavaScript(`
-          //   document.getElementsByClassName('no_login_box')[0].style.display
-          // `)
-          // printlog(`no_login_box display '${result}'`)
-    
-          // if (!result.includes('none')) {
-          //   // 불러오기 실패 예외 처리
-          //   printlog('login failed -> widget end')
-          //   printlog(result)
-
+          account.userid = id
+          account.userpw = pw
+        
+          try {
             
-          //   if (!config.runsInWidget) {
-          //     prompt = new Alert()
-          //     prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
-          //     prompt.addAction('확인')
-          //     await prompt.presentAlert()
-          //   }
-          // } else {
-            account.userid = id
-            account.userpw = pw
-          
-            try {
-              await saveAccount()
-              let v = new WebView()
+            let v = new WebView()
+            if (prefs.servType === 'app') {
               printlog('Logout Process')
-
               await v.loadURL(tplusLogoutUrl)
               await v.waitForLoad()
-            } catch (e) {
-              console.error(e)
-              prompt = new Alert()
-              prompt.message = '계정 정보를 저장하는 중 오류가 발생했습니다.'
-              prompt.addAction('확인')
-              await prompt.present()
+              saveAccount()
+            } else {
+              let alert2 = new Alert()
+              alert2.message = `모바일 데이터로 계정 전환 시 4~6MB의 데이터가 소모됩니다.\n계속 진행하시겠습니까?`
+              alert2.addAction('확인')
+              alert2.addCancelAction('취소')
+              const result = await alert2.presentSheet()
+              if (result === 0) {
+                printlog('Logout Process')
+                await v.loadURL(tplusLogoutUrl)
+                await v.waitForLoad()
+                saveAccount()
+              } 
             }
-          // }
+          } catch (e) {
+            console.error(e)
+            prompt = new Alert()
+            prompt.message = '계정 정보를 저장하는 중 오류가 발생했습니다.'
+            prompt.addAction('확인')
+            await prompt.present()
+          }
         }
       }
       refreshTable()
@@ -582,6 +573,42 @@ async function createMenuTable() {
           refreshWidgetInfoTable()
         }
 
+        let widgetInfoRow5 = new UITableRow()
+        widgetInfoRow5.height = 70
+        widgetInfoRow5.dismissOnSelect = false
+    
+        let widgetInfoText5 = widgetInfoRow5.addText(`통신 서버 : ${servTypeArr[prefs.servType][0]}`, 'SKT망 사용자가 아닐 경우 웹 페이지를 통해 정보를 가져올 수 있습니다.')
+        widgetInfoText5.titleFont = Font.boldSystemFont(15)
+        widgetInfoText5.subtitleFont = Font.systemFont(14)
+      
+        widgetInfo.addRow(widgetInfoRow5)
+        
+        widgetInfoRow5.onSelect = async () => {
+          let selectServType = new UITable()
+          selectServType.showSeparators = true
+          
+          for(index in servTypeArr){
+            let row = new UITableRow()
+            row.height = 60
+            let text = row.addText(`${prefs.servType == index ? '☑️ ' : ''}${servTypeArr[index][0]}`, `${servTypeArr[index][1]}`)
+            text.titleFont = Font.boldSystemFont(14)
+            text.subtitleFont = Font.systemFont(12)
+            
+            selectServType.addRow(row)
+            
+            row.onSelect = (n) => {
+              prefs.servType = Object.keys(servTypeArr)[n]
+              tplusLoginUrl = servTypeArr[prefs.servType][2]
+              tplusLogoutUrl = servTypeArr[prefs.servType][3]
+              tplusMainUrl = servTypeArr[prefs.servType][4]
+            }
+          }
+          
+          await selectServType.present()
+          refreshWidgetInfoTable()
+        }
+
+
         if (files.fileExists(accountPath)) {
           let widgetInfoRow2 = new UITableRow()
           widgetInfoRow2.height = 70
@@ -719,51 +746,71 @@ async function GetUsage() {
     },
   }
   const timer = new Timer
-  let html
+  // let html
   // let fm = FileManager.iCloud()
 
   let v = new WebView()
-  await v.loadURL(tplusMainUrl)
-  
-  printlog('wait 1000ms')
-  await timer.add(1000)
   
 
   // Detect Login
   let result
   let errorLoginRetry = 1
   
-  result = await v.evaluateJavaScript(`
-    String(document.getElementsByClassName('no_login_box')[0]?.style.display)
-  `)
-  printlog(`no_login_box display '${result}'`)
-
-  if (!result.includes('none')) {
-    errorLoginRetry = 2
-    printlog('Start Login')
-    await v.loadURL(tplusLoginUrl)
-    printlog('login process')
-
+  if (prefs.servType === 'app') {
+    await v.loadURL(tplusMainUrl)
   
-    await v.evaluateJavaScript(`
-      document.getElementById('uid').value = '${account.userid}'
-      document.getElementById('upw').value = '${account.userpw}'
-      console.log(document.getElementById('uid').value)
-      console.log(document.getElementById('upw').value)
-      document.getElementById('autoLoginChk').value = true
-      document.getElementsByClassName('btn btn_full btn_login')[0].click()
-    `)
-    
-    //fm.write(fm.joinPath(fm.documentsDirectory(), 'login3.html'), Data.fromString(html))
-    
-    sleep(1000)
+    printlog('wait 1000ms')
+    await timer.add(1000)
 
-    //await v.waitForLoad()
+    result = await v.evaluateJavaScript(`
+      String(document.getElementsByClassName('no_login_box')[0]?.style.display)
+    `)
+    printlog(`no_login_box display '${result}'`)
+
+    if (!result.includes('none')) {
+      errorLoginRetry = 2
+      printlog('Start Login')
+      await v.loadURL(tplusLoginUrl)
+      printlog('login process')
+
     
+      await v.evaluateJavaScript(`
+        document.getElementById('uid').value = '${account.userid}'
+        document.getElementById('upw').value = '${account.userpw}'
+        console.log(document.getElementById('uid').value)
+        console.log(document.getElementById('upw').value)
+        document.getElementById('autoLoginChk').value = true
+        document.getElementsByClassName('btn btn_full btn_login')[0].click()
+      `)
+      
+      sleep(1000)
+      await v.loadURL(tplusMainUrl)
+    }
+  } else {
     await v.loadURL(tplusMainUrl)
 
+    // web load
+    result = await v.evaluateJavaScript(`
+      String(document.URL)
+    `)
+    printlog(`webview URL '${result}'`)
+
+    if (result.includes(tplusLoginUrl)) {
+      printlog('Start Login')
+      await v.loadURL(tplusLoginUrl)
+      printlog('login process')
+
+      await v.evaluateJavaScript(`
+        document.getElementById('mberId').value = '${account.userid}'
+        document.getElementById('password').value = '${account.userpw}'
+        javascript:goLogin()
+      `)
+      
+      await v.waitForLoad()
+      await v.loadURL(tplusMainUrl)
+      if (debug) await v.present()
+    }
   }
-  // let v = v2
   
   for (let i = 0; i < errorLoginRetry; i++) {
 
@@ -774,117 +821,74 @@ async function GetUsage() {
       await timer.add(1000)
     }
 
-    // loading 끝날때 까지 대기 (5초)
-    for (let i = 0; i < 50; i++) {
+    // Detect Login Failed
+    if (prefs.servType === 'app') {
+      // loading 끝날때 까지 대기 (5초) -> App Url만 수행
+      for (let i = 0; i < 50; i++) {
+        result = await v.evaluateJavaScript(`
+          String(document.getElementsByClassName('overlay_load')[0].style.display)
+        `)
+        console.log(`result : ${result}`)
+        if (result.includes('none')) {
+          console.log('break')
+          break
+        } else {
+          console.log('sleep 100ms')
+          sleep(100)
+        }
+      }
+
       result = await v.evaluateJavaScript(`
-        String(document.getElementsByClassName('overlay_load')[0].style.display)
-      `)
-      console.log(`result : ${result}`)
-      if (result.includes('none')) {
-        console.log('break')
-        break
-      } else {
-        console.log('sleep 100ms')
-        sleep(100)
-      }
-    }
-    
-
-    // await v.loadURL(tplusMainUrl)
-
-    // if (result.includes('block')) {
-    //   printlog('refresh page')
-    //   html = await v.getHTML()
-    //   fm.write(fm.joinPath(fm.documentsDirectory(), 'login5.html'), Data.fromString(html))
-    //   await v.loadURL(tplusMainUrl)
-    // }
-
-    // sleep(100)
-
-    // for (let i = 0; i < 1; i++) {
-    //   result = await v.evaluateJavaScript(`  
-    //     var disp
-    //     var wakeUpTime
-    //     for (let i = 0; i < 10; i++) {
-    //       disp = document.getElementsByClassName('overlay_load')[0].style.display
-    //       if (!disp.includes('block')) {
-    //         console.log('break')
-    //         break
-    //       } else {
-    //         console.log(disp)
-    //         wakeUpTime = Date.now() + 1000;
-    //         while (Date.now() < wakeUpTime) {}
-    //       }
-    //     }
-    //     disp
-    //   `)
-      
-    //   if (result.includes('block')) {
-    //     printlog('refresh page')
-    //     html = await v.getHTML()
-    //     fm.write(fm.joinPath(fm.documentsDirectory(), 'login5.html'), Data.fromString(html))
-    //     await v.loadURL(tplusMainUrl)
-    //   }
-    // }
-
-    
-    
-    // 정상적으로 불러왔는지 검증
-    // 로그인 실패 검사
-    // Detect Login
-
-
-    result = await v.evaluateJavaScript(`
       String(document.getElementsByClassName('no_login_box')[0]?.style.display)
-    `)
-    printlog(`no_login_box display '${result}'`)
+      `)
+      printlog(`no_login_box display '${result}'`)
 
-    if (!result.includes('none')) {
-      if (i == 0) {
-        continue
+      if (!result.includes('none')) {
+        if (i == 0) {
+          continue
+        }
+        final.data.usage = errMsg[0]
+      
+        if (!config.runsInWidget) {
+          const prompt = new Alert()
+          prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
+          prompt.addAction('확인')
+          await prompt.presentAlert()
+        }
+
+        return final
       }
-      final.data.usage = errMsg[0]
-    
-      if (!config.runsInWidget) {
-        const prompt = new Alert()
-        prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
-        prompt.addAction('확인')
-        await prompt.presentAlert()
+      else {
+        printlog('for break')
+        break
       }
+    } else { 
+    // web load
+      result = await v.evaluateJavaScript(`
+        String(document.URL)
+      `)
+      printlog(`webview URL '${result}'`)
 
-      // throw new Error('Failed to Login')
-      return final
-    }
-    else {
-      printlog('for break')
-      break
-    }
-  }
-  // result = await v.evaluateJavaScript(`
-  //   String(document.getElementById('t_userid').value)
-  // `)
-    
-  // if (result != account.userid) {
-  //   // 불러오기 실패 예외 처리
-  //   printlog(`login failed : '${result}'`)
+      if (result.includes(tplusLoginUrl)) {    
 
-  //   // final.data.usage = errMsg[0]
+        final.data.usage = errMsg[0]
+      
+        if (!config.runsInWidget) {
+          const prompt = new Alert()
+          prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
+          prompt.addAction('확인')
+          await prompt.presentAlert()
+        }
+
+        return final
+      }
+      else {
+        printlog('for break')
+        break
+      }
+    }
   
-  //   // if (!config.runsInWidget) {
-  //   //   const prompt = new Alert()
-  //   //   prompt.message = '로그인에 실패했습니다. ID와 비밀번호를 확인하세요.'
-  //   //   prompt.addAction('확인')
-  //   //   await prompt.presentAlert()
-  //   // }
-
-  //   // // throw new Error('Failed to Login')
-  //   // return final
-  // }
-
-
-  // await timer.add(3000)
-
-
+  }
 
   // record last login time
   const t = new Date()
@@ -899,58 +903,69 @@ async function GetUsage() {
   } catch (e) {
     console.error(e)
   }
+  
+  let total
+  let usage
 
-  // result = await v.evaluateJavaScript(`
-  //   document.getElementsByClassName('progress_current ng-binding').length
-  // `)
+  if (prefs.servType === 'app') {
+    usage = await v.evaluateJavaScript(`
+      let remain = new Array()
+      for (let i = 0; i < 3; i++) {
+        remain.push(String(document.getElementsByClassName('progress_current').item(i).innerText))
+      }
+      remain
+    `)
+    printlog(usage)
     
-  // if (result !== 3) {
-  //   // 불러오기 실패 예외 처리
-  //   printlog('loading failed -> widget end')
-  //   printlog(result)
-  //   // throw new Error('Failed to get data from server')
+    total = await v.evaluateJavaScript(`
+      let usage = new Array()
+      for (let i = 0; i < 3; i++) {
+        usage.push(String(document.getElementsByClassName('progress_max').item(i).innerText))
+      }
+      usage
+    `)
+    printlog(total)
+  } else {
+    result = await v.evaluateJavaScript(`
+      document.getElementsByClassName('box box3')[0].innerText
+    `)
+    let resultArray = result.split('\n')
 
-  //   final.data.usage = errMsg[1]
+// resultArray[0] -> "사용량 조회"
+//            [1] -> 날짜
+//            [2] -> "음성(분)"
+//            [3] -> 음성 사용량 (/로 구분)
+//            [4] -> "데이터(데이터단위)"
+//            [5] -> 데이터 사용량 (/로 구분)
+//            [6] -> "문자(건)"
+//            [7] -> 문자 사용량 (/로 구분)
 
-  //   if (!config.runsInWidget) {
-  //     const prompt = new Alert()
-  //     prompt.message = '정보를 가져오지 못했습니다. 네트워크 상태를 확인하세요.'
-  //     prompt.addAction('확인')
-  //     await prompt.presentAlert()
-  //   }
+    usage = new Array()
+    total = new Array()
 
-  //   // throw new Error('Failed to Login')
-  //   return final
-  // }
-  //fm.write(fm.joinPath(fm.documentsDirectory(), 'login7.html'), Data.fromString(html))
-  
-  let remain = await v.evaluateJavaScript(`
-    let remain = new Array()
-    for (let i = 0; i < 3; i++) {
-      remain.push(String(document.getElementsByClassName('progress_current').item(i).innerText))
+    for (let i = 3; i < 8; i += 2) {
+      let [usageNum, totalNum] = resultArray[i].split('/', 2)
+      let unit = resultArray[i-1].substring(resultArray[i-1].indexOf('(') + 1, resultArray[i-1].lastIndexOf(')')).trim()
+      usage.push(`${usageNum.trim()}${unit}`)
+      total.push(`총 ${totalNum.trim()}${unit}`)
     }
-    remain
-  `)
-  printlog(remain)
-  
-  let usage = await v.evaluateJavaScript(`
-    let usage = new Array()
-    for (let i = 0; i < 3; i++) {
-      usage.push(String(document.getElementsByClassName('progress_max').item(i).innerText))
-    }
-    usage
-  `)
-  printlog(usage)
+
+    usage[1] = [usage[2], usage[2] = usage[1]][0];
+    total[1] = [total[2], total[2] = total[1]][0];
+    printlog(usage)
+    printlog(total)
+  }
+
 
   // 데이터 단위 추출
-  final.data.usage = remain[2].trim()
-  final.data.total = usage[2].substr(2).trim()
+  final.data.usage = usage[2].trim()
+  final.data.total = total[2].substr(2).trim()
 
-  final.voice.usage = remain[0].trim()
-  final.voice.total = usage[0].substr(2).trim()
+  final.voice.usage = usage[0].trim()
+  final.voice.total = total[0].substr(2).trim()
 
-  final.sms.usage = remain[1].trim()
-  final.sms.total = usage[1].substr(2).trim()
+  final.sms.usage = usage[1].trim()
+  final.sms.total = total[1].substr(2).trim()
 
   return final
 }
